@@ -1,0 +1,152 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Create Generic EC2 With Auto Scalling And ELB"
+Parameters:
+  VPCID:
+    Description: "VPC from Generic VPC Stack"
+    Type: String
+
+  PublicSubnet1:
+    Description: "Subnet From Generic VPC Stack"
+    Type: String
+
+  PublicSubnet2:
+    Description: "Subnet From Generic VPC Stack"
+    Type: String
+
+  PrivateSubnet1:
+    Description: "Subnet From Generic VPC Stack"
+    Type: String
+
+  PrivateSubnet2:
+    Description: "Subnet From Generic VPC Stack"
+    Type: String
+
+  SecurityGroup:
+    Description: "SecurityGroup From Generic VPC Stack"
+    Type: String
+
+Mappings:
+  Name:
+    Instance:
+      "Instance1": "webserver-1"
+      "Instance2": "webserver-2"
+
+Resources:
+  
+  EC2Instance1:
+    Type: AWS::EC2::Instance
+    Properties:      
+      InstanceType: t2.micro
+      ImageId: "ami-04169656fea786776"
+      KeyName: "terraform-key"
+      SecurityGroupIds:
+        - !Ref SecurityGroup
+      SubnetId: !Ref PublicSubnet1 
+      Monitoring: true
+      BlockDeviceMappings:
+      - DeviceName: "/dev/sda1"
+        Ebs:
+          VolumeSize: 10
+          VolumeType: gp2
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          apt-get update
+          apt-get install -y auditd wget vim zip unzip unrar rsync debconf-utils
+          apt-get update
+          apt-get install -y apache2
+          /etc/init.d/apache2 start
+      Tags:
+      - Key: "Name"
+        Value: !FindInMap [Name, Instance, Instance1]
+
+  EC2Instance2:
+    Type: AWS::EC2::Instance
+    Properties:      
+      InstanceType: t2.micro
+      ImageId: "ami-04169656fea786776"
+      KeyName: "terraform-key"
+      SecurityGroupIds:
+        - !Ref SecurityGroup
+      SubnetId: !Ref PrivateSubnet1
+      Monitoring: true
+      BlockDeviceMappings:
+      - DeviceName: "/dev/sda1"
+        Ebs:
+          VolumeSize: 10
+          VolumeType: gp2
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          apt-get update
+          apt-get install -y auditd wget vim zip unzip unrar rsync debconf-utils
+          apt-get update
+          apt-get install -y apache2
+          /etc/init.d/apache2 start          
+      Tags:
+      - Key: "Name"
+        Value: !FindInMap [Name, Instance, Instance2]
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 4
+      Matcher:
+        HttpCode: '200'
+      Name: Cft-Target
+      Port: 80
+      Protocol: HTTP
+      TargetGroupAttributes:
+      - Key: deregistration_delay.timeout_seconds
+        Value: '20'
+      Targets:
+      - Id: !Ref EC2Instance1
+        Port: 80
+      - Id: !Ref EC2Instance2
+        Port: 80
+      UnhealthyThresholdCount: 3
+      VpcId: !Ref VPCID
+  
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: cft-alb
+      Scheme: internet-facing
+      Subnets: [!Ref PublicSubnet1, !Ref PublicSubnet2 ]
+      SecurityGroups: [!Ref SecurityGroup]
+      Tags:
+      - Key: "Name"
+        Value: "CFT-ALB"
+
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn:
+            Ref: TargetGroup
+      LoadBalancerArn:
+          Ref: ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+Outputs:
+  EC2Instance1InstanceID:
+    Description: The Instance ID
+    Value: !Ref EC2Instance1
+  EC2Instance1PublicIp:
+    Description: The Instance Public IP
+    Value: !GetAtt EC2Instance1.PublicIp
+  EC2Instance2InstanceID:
+    Description: The Instance ID
+    Value: !Ref EC2Instance2
+  EC2Instance2PublicIp:
+    Description: The Instance Public IP
+    Value: !GetAtt EC2Instance2.PublicIp
+  ApplicationLoadBalancerDNSName:
+    Description: The DNSName of the backup load balancer
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
