@@ -1,0 +1,79 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: >-
+  The Application Services stack
+Parameters:
+  ApplicationServicesEnvironment:
+    Description: "Environment Name"
+    Type: String 
+    Default: Dev
+  VPCName:
+    Description: An environment name that will be prefixed to resource names
+    Type: String
+    Default: "ecs"
+  ArtifactBucketName:
+    Description: An environment name that will be prefixed to resource names
+    Type: String
+    Default: "bucketforcftchiranjit1" 
+  ProjectName:
+    Description: "Name of project"
+    Type: String
+    Default: "Demo"
+  ApplicationServiceKeyName:
+    Description: "Name of EC2 instance KeyPair"
+    Type: String
+    Default: "terraform-key"
+    
+  ECSAppInstanceType:
+    Description: "Instance Type"
+    Type: String
+    Default: "t3.medium"  
+
+
+Resources:
+  VPCStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 
+         "https://s3.amazonaws.com/${ArtifactBucketName}/ecs/vpc_creation.yaml"
+      TimeoutInMinutes: '15'
+        
+  ECRStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 
+         "https://s3.amazonaws.com/${ArtifactBucketName}/ecs/ecr_creation.yaml"
+      TimeoutInMinutes: '15'    
+
+  ECSStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 
+         "https://s3.amazonaws.com/${ArtifactBucketName}/ecs/ecs_with_alb.yaml"
+      TimeoutInMinutes: '15'
+      Parameters:
+        EnvironmentName: !Ref ApplicationServicesEnvironment
+        ProjectName: !Ref ProjectName
+        ApplicationServiceKeyName: !Ref ApplicationServiceKeyName
+        InstanceType: !Ref ECSAppInstanceType
+        VpcId:  !GetAtt  VPCStack.Outputs.VPCID            
+        PrivateSubnet1: !GetAtt  VPCStack.Outputs.PrivateSubnet1
+        PrivateSubnet2: !GetAtt  VPCStack.Outputs.PrivateSubnet2          
+        PublicSubnet1:  !GetAtt  VPCStack.Outputs.PublicSubnet1     
+        PublicSubnet2:  !GetAtt  VPCStack.Outputs.PublicSubnet2 
+        CodeBaseImageECRName: !GetAtt ECRStack.Outputs.CodeBaseImageECRName
+        PurchaseOption: Spot   # Allowed Values OnDemand and Spot. Ignore for Fargate
+        ContainerName: MyContainer
+        LaunchType: EC2        # Allowed Values EC2 and Fargate
+#        
+#  SNSStack:
+#    Type: AWS::CloudFormation::Stack
+#    Properties:
+#      TemplateURL: !Sub 
+#         "https://s3.amazonaws.com/${ArtifactBucketName}/cf-templates/application_services/step-01-01-application_services_sns.yaml"
+#      TimeoutInMinutes: '15'
+#      Parameters:    
+#        ApplicationServicesEnvironment: !Ref ApplicationServicesEnvironment
+#        SubscriberEmailID: !Ref SubscriberEmailID
+#        ProjectName: !Ref ProjectName      
+#

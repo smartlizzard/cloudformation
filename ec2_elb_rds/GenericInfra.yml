@@ -1,0 +1,40 @@
+Parameters:
+ ArtifactBucketName:
+   Description: S3 Bucket Name
+   Type: String
+   Default: "bucket4cft"
+
+
+Resources:
+  VPCStack:
+    Type: AWS::CloudFormation::Stack
+    Properties: 
+      TemplateURL: !Sub 
+         "https://s3.amazonaws.com/bucket4cft/cf-templates/GenericVPC.yml"
+      TimeoutInMinutes: '15'
+
+  EC2Stack:
+    Type: AWS::CloudFormation::Stack
+    Properties: 
+      TemplateURL: !Sub 
+         "https://s3.amazonaws.com/bucket4cft/cf-templates/GenericEc2withElb.yml"
+      TimeoutInMinutes: '15'
+      Parameters:
+        VPCID: !GetAtt VPCStack.Outputs.VPCID 
+        PublicSubnet1: !GetAtt VPCStack.Outputs.PublicSubnet1
+        PublicSubnet2: !GetAtt VPCStack.Outputs.PublicSubnet2
+        PrivateSubnet1: !GetAtt VPCStack.Outputs.PrivateSubnet1
+        PrivateSubnet2: !GetAtt VPCStack.Outputs.PrivateSubnet2
+        SecurityGroup: !GetAtt VPCStack.Outputs.SecurityGroup
+
+  RDSStack:
+    Type: AWS::CloudFormation::Stack
+    Properties: 
+      TemplateURL: !Sub 
+         "https://s3.amazonaws.com/bucket4cft/cf-templates/GenericRDS.yml"
+      TimeoutInMinutes: '15'
+      Parameters:
+        VPCID: !GetAtt VPCStack.Outputs.VPCID
+        PrivateSubnet1: !GetAtt VPCStack.Outputs.PrivateSubnet1
+        PrivateSubnet2: !GetAtt VPCStack.Outputs.PrivateSubnet2
+        RDSSecurityGroup: !GetAtt VPCStack.Outputs.RDSSecurityGroup
